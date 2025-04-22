@@ -6,13 +6,33 @@
 
 
 
-// Floor states
-enum Floor {GROUND = 0, MIDDLE = 1, TOP = 2};
-Floor currentFloor = GROUND;
+// Enums for floor and direction
+enum Floor { GROUND = 0, MIDDLE = 1, TOP = 2 };
+enum Direction { IDLE, UP, DOWN };
 
-// Lift direction
-enum Direction {IDLE, UP, DOWN};
+// Global state variables
+Floor currentFloor = GROUND;
 Direction liftDirection = IDLE;
+bool isMoving = false;
+
+void moveToFloor(Floor target) {
+    if (target == currentFloor) return;
+
+    liftDirection = (target > currentFloor) ? UP : DOWN;
+
+    if (liftDirection == UP) {
+        moveForward(150);
+    } else {
+        moveBackward(150);
+    }
+
+    delay(3000);  // Simulate travel time (you can replace with ultrasonic logic)
+    stopMotor();
+
+    currentFloor = target;
+    liftDirection = IDLE;
+    isMoving = false;
+}
 
 void setup() {
     Serial.begin(9600);
@@ -20,7 +40,6 @@ void setup() {
     motorSetup();
     ultrasonicSetup();
 
-    // Configure button pins
     pinMode(BTN_GND_UP, INPUT_PULLUP);
     pinMode(BTN_MID_UP, INPUT_PULLUP);
     pinMode(BTN_MID_DOWN, INPUT_PULLUP);
@@ -28,59 +47,40 @@ void setup() {
 }
 
 void loop() {
-    // Read external button requests
     bool callFromGround = IS_PRESSED(BTN_GND_UP);
     bool callFromMiddleUp = IS_PRESSED(BTN_MID_UP);
     bool callFromMiddleDown = IS_PRESSED(BTN_MID_DOWN);
     bool callFromTop = IS_PRESSED(BTN_TOP_DOWN);
 
-    // Handle floor requests based on current floor and direction
-    if (liftDirection == IDLE) {
-        if (currentFloor == GROUND && callFromGround) {
-            // Prioritize middle before top
-            if (callFromMiddleUp) moveToFloor(MIDDLE);
-            else if (callFromTop) moveToFloor(TOP);
+    if (!isMoving) {
+        if (callFromGround && currentFloor == GROUND) {
+            moveToFloor(MIDDLE);  // default priority upward from ground
+        } else if (callFromMiddleUp && currentFloor == MIDDLE) {
+            moveToFloor(TOP);
+        } else if (callFromMiddleDown && currentFloor == MIDDLE) {
+            moveToFloor(GROUND);
+        } else if (callFromTop && currentFloor == TOP) {
+            moveToFloor(MIDDLE);
         }
-        else if (currentFloor == MIDDLE) {
-            if (callFromMiddleUp) moveToFloor(TOP);
-            else if (callFromMiddleDown) moveToFloor(GROUND);
-        }
-        else if (currentFloor == TOP && callFromTop) {
-            // Prioritize going to middle before ground
-            if (callFromMiddleDown) moveToFloor(MIDDLE);
-            else moveToFloor(GROUND);
+        // Prioritize calls while the lift is idle
+        else if (callFromGround) {
+            moveToFloor(MIDDLE);
+        } else if (callFromMiddleUp) {
+            moveToFloor(TOP);
+        } else if (callFromTop) {
+            moveToFloor(MIDDLE);
+        } else if (callFromMiddleDown) {
+            moveToFloor(GROUND);
         }
     }
 
-    // Handle keypad input when cabin is idle
-    if (liftDirection == IDLE) {
-        char key = getKeypadInput();
+    // Handle keypad inputs only when lift is idle (inside cabin)
+    char key = getKeypadInput();
+    if (key && !isMoving) {
         if (key == '0') moveToFloor(GROUND);
         else if (key == '1') moveToFloor(MIDDLE);
         else if (key == '2') moveToFloor(TOP);
     }
 
-    delay(200); // Debounce
-}
-
-void moveToFloor(Floor target) {
-    if (target == currentFloor) return;
-
-    if (target > currentFloor) {
-        liftDirection = UP;
-        moveForward(15);
-        Serial.println("Going up...");
-    } else {
-        liftDirection = DOWN;
-        moveBackward(15);
-        Serial.println("Going down...");
-    }
-
-    delay(3000); // Simulate motion delay (replace with getDistance() for real-world detection)
-    stopMotor();
-
-    currentFloor = target;
-    liftDirection = IDLE;
-    Serial.print("Reached floor: ");
-    Serial.println(currentFloor);
+    delay(100);
 }
