@@ -11,4 +11,3 @@
 #define IS_PRESSED(pin) (!digitalRead(pin))
 
 #endif  // BUTTON_PINS_H
-

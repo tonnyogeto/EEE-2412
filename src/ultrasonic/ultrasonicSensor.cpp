@@ -13,6 +13,5 @@ float getDistance() {
     digitalWrite(TRIG_PIN, LOW);
 
     long duration = pulseIn(ECHO_PIN, HIGH);
-    float distance = duration * 0.034 / 2;  // in centimeters
-    return distance;
+    return duration * 0.034 / 2;
 }
