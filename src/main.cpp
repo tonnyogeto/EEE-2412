@@ -3,7 +3,7 @@
 #include "motor/motorControl.h"
 #include "ultrasonic/ultrasonicSensor.h"
 #include "buttons/buttonPins.h"
-#include "motor/doorMotorControl.h"  
+#include "motor/doorMotorControl.h"
 
 // Enums for floor and direction
 enum Floor { GROUND = 0, MIDDLE = 1, TOP = 2 };
@@ -14,9 +14,9 @@ Direction liftDirection = IDLE;
 bool isMoving = false;
 
 // Target distances for each floor (in cm)
-#define DIST_GROUND 45
-#define DIST_MIDDLE 30
-#define DIST_TOP    0
+#define DIST_GROUND 36
+#define DIST_MIDDLE 16
+#define DIST_TOP    0.7
 #define FLOOR_TOLERANCE 4
 
 float getTargetDistance(Floor floor) {
@@ -24,7 +24,7 @@ float getTargetDistance(Floor floor) {
         case GROUND: return DIST_GROUND;
         case MIDDLE: return DIST_MIDDLE;
         case TOP:    return DIST_TOP;
-        default: return DIST_GROUND;
+        default:     return DIST_GROUND;
     }
 }
 
@@ -38,27 +38,36 @@ Floor getCurrentFloorFromSensor() {
 void moveToFloor(Floor target) {
     Floor currentFloor = getCurrentFloorFromSensor();
 
-    if (target == currentFloor) return;
+    if (target == currentFloor) {
+        Serial.println("Already on target floor.");
+        return;
+    }
 
     float targetDistance = getTargetDistance(target);
     float currentDistance = getDistance();
 
-    liftDirection = (target > currentFloor) ? UP : DOWN;
+    // Debug info
+    Serial.print("Current floor: "); Serial.println(currentFloor);
+    Serial.print("Target floor: "); Serial.println(target);
+    Serial.print("Current distance: "); Serial.println(currentDistance);
+    Serial.print("Target distance: "); Serial.println(targetDistance);
+
     isMoving = true;
 
-    Serial.print("Moving from floor ");
-    Serial.print(currentFloor);
-    Serial.print(" to ");
-    Serial.println(target);
-
-    if (currentDistance < targetDistance - FLOOR_TOLERANCE) {
-        moveForward(100);  // DOWN
-        while (getDistance() < targetDistance - FLOOR_TOLERANCE) {
+    if (currentDistance > targetDistance + FLOOR_TOLERANCE) {
+        // We're below the target → Move UP (reduce distance)
+        liftDirection = UP;
+        Serial.println("Moving UP");
+        moveForward(120);  // Restored to full speed
+        while (getDistance() > targetDistance + FLOOR_TOLERANCE) {
             delay(100);
         }
-    } else if (currentDistance > targetDistance + FLOOR_TOLERANCE) {
-        moveBackward(100); // UP
-        while (getDistance() > targetDistance + FLOOR_TOLERANCE) {
+    } else if (currentDistance < targetDistance - FLOOR_TOLERANCE) {
+        // We're above the target → Move DOWN (increase distance)
+        liftDirection = DOWN;
+        Serial.println("Moving DOWN");
+        moveBackward(120);  // Restored to full speed
+        while (getDistance() < targetDistance - FLOOR_TOLERANCE) {
             delay(100);
         }
     }
@@ -69,10 +78,12 @@ void moveToFloor(Floor target) {
 
     Serial.println("Arrived at desired floor.");
 
-    // Door operation logic
-    openDoor();      // Open door
-    delay(2000);     // Wait 2 seconds
-    closeDoor();     // Close door
+    delay(500);  // Delay before opening the door
+
+    // Door operation
+    openDoor();
+    delay(2000);  // Wait 2 seconds while door stays open
+    closeDoor();
 }
 
 void setup() {
@@ -80,7 +91,7 @@ void setup() {
     keypadSetup();
     motorSetup();
     ultrasonicSetup();
-    doorMotorSetup();  // <-- NEW
+    doorMotorSetup();
 
     pinMode(BTN_GND_UP, INPUT_PULLUP);
     pinMode(BTN_MID_UP, INPUT_PULLUP);
@@ -102,6 +113,7 @@ void loop() {
     Serial.println(currentFloor);
 
     if (!isMoving) {
+        // Handle calls from current floor
         if (callFromGround && currentFloor == GROUND) {
             moveToFloor(MIDDLE);
         } else if (callFromMiddleUp && currentFloor == MIDDLE) {
@@ -111,6 +123,7 @@ void loop() {
         } else if (callFromTop && currentFloor == TOP) {
             moveToFloor(MIDDLE);
         }
+
         // Prioritize external calls from any floor
         else if (callFromGround) {
             moveToFloor(GROUND);
@@ -126,6 +139,8 @@ void loop() {
     // Handle keypad inputs (inside cabin)
     char key = getKeypadInput();
     if (key && !isMoving) {
+        Serial.print("Key pressed: ");
+        Serial.println(key);
         if (key == '0') moveToFloor(GROUND);
         else if (key == '1') moveToFloor(MIDDLE);
         else if (key == '2') moveToFloor(TOP);

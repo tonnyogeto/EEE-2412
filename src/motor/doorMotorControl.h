@@ -3,9 +3,9 @@
 
 #include <Arduino.h>
 
-#define DOOR_EN   5   // PWM speed control
-#define DOOR_IN1  8   // Direction 1
-#define DOOR_IN2  13   // Direction 2
+#define DOOR_EN   5
+#define DOOR_IN1  8
+#define DOOR_IN2  13
 
 void doorMotorSetup();
 void openDoor();

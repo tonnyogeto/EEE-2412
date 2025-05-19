@@ -15,3 +15,4 @@ float getDistance() {
     long duration = pulseIn(ECHO_PIN, HIGH);
     return duration * 0.034 / 2;
 }
+
